@@ -1,0 +1,19 @@
+# Personal/course files
+module-6-plan.md
+assignment.md
+LEARN-AWS-WITH-FLOCI.md
+prev-assigment-work.md
+
+# Terraform state (contains sensitive data - never commit)
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/crash.log
+
+# Screenshots
+screenshots/
+
+# OS
+.DS_Store
+Thumbs.db

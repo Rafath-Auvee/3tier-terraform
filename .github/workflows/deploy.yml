@@ -1,0 +1,91 @@
+name: Deploy Application
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "app/**"
+
+jobs:
+  deploy:
+    name: Deploy to App Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.BASTION_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy via Bastion (ProxyJump)
+        run: |
+          ssh \
+            -o StrictHostKeyChecking=no \
+            -o ProxyJump=ubuntu@${{ secrets.BASTION_IP }} \
+            ubuntu@${{ secrets.APP_SERVER_IP }} << 'EOF'
+            set -e
+            cd /home/ubuntu/backend-app
+
+            # Pull latest code
+            git pull origin main
+
+            # Install dependencies
+            npm install --production
+
+            # Set environment variables for PM2
+            export DB_HOST="${{ secrets.DB_HOST }}"
+            export DB_USER="${{ secrets.DB_USER }}"
+            export DB_PASSWORD="${{ secrets.DB_PASSWORD }}"
+            export DB_NAME="${{ secrets.DB_NAME }}"
+
+            # Restart or start the PM2 process
+            pm2 restart backend-app \
+              --update-env \
+              --env DB_HOST=$DB_HOST \
+              --env DB_USER=$DB_USER \
+              --env DB_PASSWORD=$DB_PASSWORD \
+              --env DB_NAME=$DB_NAME \
+              || pm2 start server.js \
+                --name backend-app \
+                --env DB_HOST=$DB_HOST \
+                --env DB_USER=$DB_USER \
+                --env DB_PASSWORD=$DB_PASSWORD \
+                --env DB_NAME=$DB_NAME
+
+            pm2 save
+            echo "Deployment complete"
+          EOF
+
+  terraform-validate:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.6.0"
+
+      - name: Terraform Init
+        working-directory: ./terraform
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: terraform init
+
+      - name: Terraform Validate
+        working-directory: ./terraform
+        run: terraform validate
+
+      - name: Terraform Format Check
+        working-directory: ./terraform
+        run: terraform fmt -check -recursive
