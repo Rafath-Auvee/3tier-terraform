@@ -1,3 +1,6 @@
+# SSH key - never commit
+*.pem
+
 # Personal/course files
 module-6-plan.md
 assignment.md
@@ -11,8 +14,6 @@ terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/crash.log
 
-# Screenshots
-screenshots/
 
 # OS
 .DS_Store
